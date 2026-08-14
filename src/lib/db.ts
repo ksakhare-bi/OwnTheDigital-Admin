@@ -6,8 +6,7 @@ type MongooseCache = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
-  var mongooseCache: MongooseCache | undefined;
+  var mongooseCache: MongooseCache | undefined; // eslint-disable-line no-var
 }
 
 const cached: MongooseCache = global.mongooseCache ?? {

@@ -6,13 +6,23 @@ import { loginAdmin, logoutAdmin } from "@/services/auth.service";
 import { createBlog, updateBlog, deleteBlog } from "@/services/blogs.service";
 import { loginSchema } from "@/lib/validations/auth";
 import { createBlogSchema, updateBlogSchema } from "@/lib/validations/blog";
+import type { z } from "zod";
 
-export async function loginAction(prevState: any, formData: FormData) {
+type ActionResult = { error?: string; success?: boolean; blogId?: string };
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "An unexpected error occurred";
+}
+
+export async function loginAction(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
   const result = loginSchema.safeParse({ email, password });
-  
+
   if (!result.success) {
     return { error: result.error.issues[0].message };
   }
@@ -22,8 +32,8 @@ export async function loginAction(prevState: any, formData: FormData) {
     if (!user) {
       return { error: "Invalid email or password" };
     }
-  } catch (err: any) {
-    return { error: err.message || "An unexpected error occurred" };
+  } catch (err: unknown) {
+    return { error: getErrorMessage(err) };
   }
 
   redirect("/dashboard");
@@ -34,7 +44,9 @@ export async function logoutAction() {
   redirect("/login");
 }
 
-export async function createBlogAction(data: any) {
+export async function createBlogAction(
+  data: z.input<typeof createBlogSchema>
+): Promise<ActionResult> {
   const result = createBlogSchema.safeParse(data);
   if (!result.success) {
     return { success: false, error: result.error.issues[0].message };
@@ -45,12 +57,15 @@ export async function createBlogAction(data: any) {
     revalidatePath("/blogs");
     revalidatePath("/dashboard");
     return { success: true, blogId: blog.id };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to create blog" };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err) || "Failed to create blog" };
   }
 }
 
-export async function updateBlogAction(id: string, data: any) {
+export async function updateBlogAction(
+  id: string,
+  data: z.input<typeof updateBlogSchema>
+): Promise<ActionResult> {
   const result = updateBlogSchema.safeParse(data);
   if (!result.success) {
     return { success: false, error: result.error.issues[0].message };
@@ -65,12 +80,12 @@ export async function updateBlogAction(id: string, data: any) {
     revalidatePath(`/blogs/${id}/edit`);
     revalidatePath("/dashboard");
     return { success: true, blogId: blog.id };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to update blog" };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err) || "Failed to update blog" };
   }
 }
 
-export async function deleteBlogAction(id: string) {
+export async function deleteBlogAction(id: string): Promise<ActionResult> {
   try {
     const success = await deleteBlog(id);
     if (!success) {
@@ -79,7 +94,7 @@ export async function deleteBlogAction(id: string) {
     revalidatePath("/blogs");
     revalidatePath("/dashboard");
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to delete blog" };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err) || "Failed to delete blog" };
   }
 }

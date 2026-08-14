@@ -2,9 +2,10 @@
 
 import { useTransition, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, type Control, type UseFormRegister, type FieldError } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createBlogSchema, type CreateBlogSchema } from "@/lib/validations/blog";
+import { z } from "zod";
+import { createBlogSchema } from "@/lib/validations/blog";
 import { createBlogAction, updateBlogAction, deleteBlogAction } from "@/app/actions";
 import { slugify } from "@/utils/slug";
 import type { Blog } from "@/types/blog";
@@ -13,22 +14,7 @@ type BlogFormProps = {
   blog?: Blog | null;
 };
 
-interface BlogFormValues {
-  title: string;
-  slug: string;
-  category: string;
-  readTime: string;
-  excerpt: string;
-  image: string;
-  tags: string[];
-  intro: string;
-  sections: {
-    heading: string;
-    description: string;
-    bullets?: string[];
-  }[];
-  published: boolean;
-}
+type BlogFormValues = z.input<typeof createBlogSchema>;
 
 export function BlogForm({ blog }: BlogFormProps) {
   const router = useRouter();
@@ -43,7 +29,7 @@ export function BlogForm({ blog }: BlogFormProps) {
     control,
     formState: { errors },
   } = useForm<BlogFormValues>({
-    resolver: zodResolver(createBlogSchema) as any,
+    resolver: zodResolver(createBlogSchema),
     defaultValues: {
       title: blog?.title || "",
       slug: blog?.slug || "",
@@ -88,7 +74,7 @@ export function BlogForm({ blog }: BlogFormProps) {
     setValue("slug", slugify(titleValue));
   };
 
-  const onSubmit = (data: any) => {
+  const onSubmit = (data: BlogFormValues) => {
     setError(null);
     startTransition(async () => {
       let res;
@@ -352,7 +338,7 @@ export function BlogForm({ blog }: BlogFormProps) {
           ))}
 
           {errors.sections && !Array.isArray(errors.sections) && (
-            <p className="mt-1 text-xs text-red-600">{(errors.sections as any).message}</p>
+            <p className="mt-1 text-xs text-red-600">{(errors.sections as FieldError).message}</p>
           )}
         </div>
 
@@ -413,13 +399,16 @@ function BulletListEditor({
   sectionIndex,
   register,
 }: {
-  control: any;
+  control: Control<BlogFormValues>;
   sectionIndex: number;
-  register: any;
+  register: UseFormRegister<BlogFormValues>;
 }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bulletsControl = control as unknown as Control<Record<string, any>>;
+
   const { fields, append, remove } = useFieldArray({
-    control,
-    name: `sections.${sectionIndex}.bullets` as any,
+    control: bulletsControl,
+    name: `sections.${sectionIndex}.bullets`,
   });
 
   return (

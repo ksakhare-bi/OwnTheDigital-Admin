@@ -2,6 +2,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/utils/format-date";
 import type { Blog } from "@/types/blog";
 import Link from "next/link";
+import Image from "next/image";
 import { Edit2, ExternalLink, Image as ImageIcon } from "lucide-react";
 
 type BlogTableProps = {
@@ -36,9 +37,11 @@ export function BlogTable({ blogs }: BlogTableProps) {
               <td className="px-5 py-3.5">
                 <div className="flex items-center gap-3.5">
                   {blog.image ? (
-                    <img
+                    <Image
                       src={blog.image}
                       alt=""
+                      width={56}
+                      height={40}
                       className="h-10 w-14 rounded-lg object-cover bg-zinc-50 border border-zinc-200/60 shrink-0"
                     />
                   ) : (
