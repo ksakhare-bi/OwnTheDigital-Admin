@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, Inbox, LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/blogs", label: "Blogs", icon: FileText },
+  { href: "/contacts", label: "Contacts", icon: Inbox },
 ] as const;
 
 export function AdminSidebar() {

@@ -98,3 +98,36 @@ export async function deleteBlogAction(id: string): Promise<ActionResult> {
     return { success: false, error: getErrorMessage(err) || "Failed to delete blog" };
   }
 }
+
+export async function updateContactStatusAction(
+  id: string,
+  status: import("@/types/contact").ContactStatus
+): Promise<ActionResult> {
+  try {
+    const { updateContactStatus } = await import("@/services/contacts.service");
+    const updated = await updateContactStatus(id, status);
+    if (!updated) {
+      return { success: false, error: "Contact message not found" };
+    }
+    revalidatePath("/contacts");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err) || "Failed to update contact status" };
+  }
+}
+
+export async function deleteContactAction(id: string): Promise<ActionResult> {
+  try {
+    const { deleteContact } = await import("@/services/contacts.service");
+    const success = await deleteContact(id);
+    if (!success) {
+      return { success: false, error: "Contact message not found" };
+    }
+    revalidatePath("/contacts");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err) || "Failed to delete contact message" };
+  }
+}
