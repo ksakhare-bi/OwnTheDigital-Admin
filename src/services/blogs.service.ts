@@ -46,6 +46,22 @@ export async function listBlogs(): Promise<Blog[]> {
   return (blogs as unknown as DbBlogDoc[]).map(mapBlog);
 }
 
+export async function listPublishedBlogs(filters?: {
+  category?: string;
+  tag?: string;
+}): Promise<Blog[]> {
+  await connectToDatabase();
+  const query: Record<string, unknown> = { published: true };
+  if (filters?.category) {
+    query.category = { $regex: new RegExp(`^${filters.category}$`, "i") };
+  }
+  if (filters?.tag) {
+    query.tags = { $in: [new RegExp(`^${filters.tag}$`, "i")] };
+  }
+  const blogs = await BlogModel.find(query).sort({ publishedAt: -1, createdAt: -1 }).lean();
+  return (blogs as unknown as DbBlogDoc[]).map(mapBlog);
+}
+
 export async function getBlogById(id: string): Promise<Blog | null> {
   await connectToDatabase();
   const blog = await BlogModel.findById(id).lean();
@@ -57,6 +73,13 @@ export async function getBlogBySlug(slug: string): Promise<Blog | null> {
   const blog = await BlogModel.findOne({ slug }).lean();
   return blog ? mapBlog(blog as unknown as DbBlogDoc) : null;
 }
+
+export async function getPublishedBlogBySlug(slug: string): Promise<Blog | null> {
+  await connectToDatabase();
+  const blog = await BlogModel.findOne({ slug, published: true }).lean();
+  return blog ? mapBlog(blog as unknown as DbBlogDoc) : null;
+}
+
 
 export async function createBlog(input: CreateBlogInput): Promise<Blog> {
   await connectToDatabase();

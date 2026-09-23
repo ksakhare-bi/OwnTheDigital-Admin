@@ -1,7 +1,7 @@
 import { AdminModel } from "@/models/admin.model";
 import { connectToDatabase } from "@/lib/db";
 import bcrypt from "bcryptjs";
-import type { AdminUser, LoginInput } from "@/types/auth";
+import type { AdminUser, LoginInput, RegisterInput } from "@/types/auth";
 import { getSession, setSession, destroySession } from "@/utils/session";
 
 // Ensure at least one admin user exists in the database
@@ -19,6 +19,52 @@ async function ensureAdminUser() {
     console.log("Seeded default admin user: admin@ownthedigital.com / Password123!");
   }
 }
+
+export async function registerAdmin(
+  input: RegisterInput,
+  options?: { overwrite?: boolean }
+): Promise<{ user: AdminUser; isNew: boolean }> {
+  await connectToDatabase();
+  const email = input.email.toLowerCase().trim();
+  const existing = await AdminModel.findOne({ email });
+
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(input.password, salt);
+  const name = input.name?.trim() || "Admin";
+
+  if (existing) {
+    if (options?.overwrite) {
+      existing.passwordHash = passwordHash;
+      if (input.name) existing.name = name;
+      await existing.save();
+      return {
+        user: {
+          id: existing._id.toString(),
+          email: existing.email,
+          name: existing.name,
+        },
+        isNew: false,
+      };
+    }
+    throw new Error(`Admin user already exists with email: ${email}`);
+  }
+
+  const admin = await AdminModel.create({
+    email,
+    name,
+    passwordHash,
+  });
+
+  return {
+    user: {
+      id: admin._id.toString(),
+      email: admin.email,
+      name: admin.name,
+    },
+    isNew: true,
+  };
+}
+
 
 export async function loginAdmin(input: LoginInput): Promise<AdminUser | null> {
   await connectToDatabase();
