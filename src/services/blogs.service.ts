@@ -9,32 +9,140 @@ type DbBlogDoc = {
   category: string;
   readTime: string;
   excerpt: string;
+  author?: unknown;
   image: string;
+  featuredImage?: {
+    url: string;
+    name?: string;
+    altText: string;
+    title?: string;
+    caption?: string;
+    description?: string;
+  };
   tags?: string[];
-  intro: string;
+  content?: string;
+  contentMode?: "visual" | "markdown" | "html";
+  intro?: string;
   sections?: { heading: string; description: string; bullets?: string[] }[];
   ctaTags?: string[];
+  status?: "draft" | "published";
   published: boolean;
   publishedAt?: Date | null;
+  seo?: {
+    title: string;
+    description: string;
+    focusKeyword?: string;
+    keywords?: string[];
+    canonicalUrl?: string;
+    robotsIndex?: boolean;
+    robotsFollow?: boolean;
+    schemaType?: string;
+  };
+  social?: {
+    ogTitle?: string;
+    ogDescription?: string;
+    ogImage?: string;
+    ogUrl?: string;
+    twitterTitle?: string;
+    twitterDescription?: string;
+    twitterImage?: string;
+    twitterCard?: "summary_large_image" | "summary";
+  };
+  relatedBlogs?: {
+    id?: string;
+    title: string;
+    slug: string;
+    excerpt?: string;
+    image?: string;
+    category?: string;
+  }[];
+  schemaSettings?: {
+    type?: string;
+    headline?: string;
+    description?: string;
+    author?: string;
+    publishedDate?: string;
+    modifiedDate?: string;
+    image?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 };
 
 function mapBlog(doc: DbBlogDoc): Blog {
+  const rawAuthor = doc.author || "Own The Digital Team";
+  const authorValue =
+    typeof rawAuthor === "string" && rawAuthor.toLowerCase().includes("brain inventory")
+      ? "Own The Digital Team"
+      : rawAuthor;
+  const featImg = doc.featuredImage?.url
+    ? doc.featuredImage
+    : {
+        url: doc.image || "",
+        altText: doc.title || "Blog featured image",
+        name: "",
+        title: doc.title || "",
+        caption: "",
+        description: doc.excerpt || "",
+      };
+
   return {
     id: doc._id.toString(),
     title: doc.title,
     slug: doc.slug,
     category: doc.category,
-    readTime: doc.readTime,
+    readTime: doc.readTime || "5 Mins",
     excerpt: doc.excerpt,
-    image: doc.image,
+    author: authorValue as Blog["author"],
+    image: doc.image || featImg.url,
+    featuredImage: featImg,
     tags: doc.tags || [],
-    intro: doc.intro,
+    content: doc.content || "",
+    contentMode: doc.contentMode || "visual",
+    intro: doc.intro || doc.excerpt,
     sections: doc.sections || [],
     ctaTags: doc.ctaTags || [],
-    published: doc.published,
+    status: doc.status || (doc.published ? "published" : "draft"),
+    published: Boolean(doc.published),
     publishedAt: doc.publishedAt ?? null,
+    seo: doc.seo || {
+      title: doc.title,
+      description: doc.excerpt,
+      focusKeyword: "",
+      keywords: doc.tags || [],
+      canonicalUrl: `https://ownthedigital.com/blogs/${doc.slug}`,
+      robotsIndex: true,
+      robotsFollow: true,
+      schemaType: "BlogPosting",
+    },
+    social: doc.social || {
+      ogTitle: doc.title,
+      ogDescription: doc.excerpt,
+      ogImage: doc.image || featImg.url,
+      ogUrl: `https://ownthedigital.com/blogs/${doc.slug}`,
+      twitterTitle: doc.title,
+      twitterDescription: doc.excerpt,
+      twitterImage: doc.image || featImg.url,
+      twitterCard: "summary_large_image",
+    },
+    relatedBlogs: (doc.relatedBlogs || []).map((rb: any) => ({
+      id: rb.id ? String(rb.id) : undefined,
+      title: String(rb.title || ""),
+      slug: String(rb.slug || ""),
+      excerpt: rb.excerpt ? String(rb.excerpt) : "",
+      image: rb.image ? String(rb.image) : "",
+      category: rb.category ? String(rb.category) : "",
+    })),
+    schemaSettings: doc.schemaSettings || {
+      type: "BlogPosting",
+      headline: doc.title,
+      description: doc.excerpt,
+      author: typeof authorValue === "string" ? authorValue : "Own The Digital Team",
+      publishedDate: doc.publishedAt ? new Date(doc.publishedAt).toISOString() : "",
+      modifiedDate: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : "",
+      image: doc.image || featImg.url,
+    },
+
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -51,7 +159,9 @@ export async function listPublishedBlogs(filters?: {
   tag?: string;
 }): Promise<Blog[]> {
   await connectToDatabase();
-  const query: Record<string, unknown> = { published: true };
+  const query: Record<string, unknown> = {
+    $or: [{ published: true }, { status: "published" }],
+  };
   if (filters?.category) {
     query.category = { $regex: new RegExp(`^${filters.category}$`, "i") };
   }
@@ -76,19 +186,29 @@ export async function getBlogBySlug(slug: string): Promise<Blog | null> {
 
 export async function getPublishedBlogBySlug(slug: string): Promise<Blog | null> {
   await connectToDatabase();
-  const blog = await BlogModel.findOne({ slug, published: true }).lean();
+  const blog = await BlogModel.findOne({
+    slug,
+    $or: [{ published: true }, { status: "published" }],
+  }).lean();
   return blog ? mapBlog(blog as unknown as DbBlogDoc) : null;
 }
-
 
 export async function createBlog(input: CreateBlogInput): Promise<Blog> {
   await connectToDatabase();
 
-  const published = Boolean(input.published);
+  const isPublished = input.status === "published" || Boolean(input.published);
+  const finalImage = input.featuredImage?.url || input.image;
+
   const blog = await BlogModel.create({
     ...input,
-    published,
-    publishedAt: published ? new Date() : null,
+    image: finalImage,
+    featuredImage: input.featuredImage || {
+      url: finalImage,
+      altText: input.title,
+    },
+    status: isPublished ? "published" : "draft",
+    published: isPublished,
+    publishedAt: input.publishedAt ? new Date(input.publishedAt) : isPublished ? new Date() : null,
   });
 
   return mapBlog(blog as unknown as DbBlogDoc);
@@ -106,14 +226,28 @@ export async function updateBlog(
   }
 
   const nextPublished =
-    typeof input.published === "boolean" ? input.published : existing.published;
+    input.status !== undefined
+      ? input.status === "published"
+      : typeof input.published === "boolean"
+        ? input.published
+        : existing.published;
+
+  const finalImage = input.featuredImage?.url || input.image || existing.image;
 
   existing.set({
     ...input,
+    image: finalImage,
+    featuredImage: input.featuredImage || existing.featuredImage || {
+      url: finalImage,
+      altText: input.title || existing.title,
+    },
+    status: nextPublished ? "published" : "draft",
     published: nextPublished,
-    publishedAt: nextPublished
-      ? (existing.publishedAt ?? new Date())
-      : null,
+    publishedAt: input.publishedAt !== undefined
+      ? (input.publishedAt ? new Date(input.publishedAt) : null)
+      : nextPublished
+        ? (existing.publishedAt ?? new Date())
+        : null,
   });
 
   await existing.save();
@@ -131,7 +265,9 @@ export async function setBlogPublished(
   published: boolean,
 ): Promise<Blog | null> {
   return updateBlog(id, {
+    status: published ? "published" : "draft",
     published,
     publishedAt: published ? new Date() : null,
   });
 }
+
