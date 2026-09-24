@@ -125,7 +125,7 @@ function mapBlog(doc: DbBlogDoc): Blog {
       twitterImage: doc.image || featImg.url,
       twitterCard: "summary_large_image",
     },
-    relatedBlogs: (doc.relatedBlogs || []).map((rb: any) => ({
+    relatedBlogs: (doc.relatedBlogs || []).map((rb) => ({
       id: rb.id ? String(rb.id) : undefined,
       title: String(rb.title || ""),
       slug: String(rb.slug || ""),
