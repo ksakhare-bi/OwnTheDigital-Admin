@@ -1,6 +1,6 @@
 import { connectToDatabase } from "@/lib/db";
 import { ContactModel } from "@/models/contact.model";
-import type { Contact, ContactStatus } from "@/types/contact";
+import type { Contact, ContactStatus, CreateContactInput } from "@/types/contact";
 
 type DbContactDoc = {
   _id: { toString(): string };
@@ -25,6 +25,22 @@ function mapContact(doc: DbContactDoc): Contact {
     updatedAt: doc.updatedAt,
   };
 }
+
+export async function createContact(
+  input: CreateContactInput
+): Promise<Contact> {
+  await connectToDatabase();
+  const contact = await ContactModel.create({
+    name: input.name.trim(),
+    email: input.email.trim().toLowerCase(),
+    phone: input.phone ? input.phone.trim() : "",
+    message: input.message.trim(),
+    status: "new",
+  });
+
+  return mapContact(contact as unknown as DbContactDoc);
+}
+
 
 export async function listContacts(status?: ContactStatus): Promise<Contact[]> {
   await connectToDatabase();
