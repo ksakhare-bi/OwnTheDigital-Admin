@@ -56,6 +56,12 @@ type DbBlogDoc = {
     image?: string;
     category?: string;
   }[];
+  embeddedLinks?: {
+    url: string;
+    title: string;
+    description?: string;
+    category?: string;
+  }[];
   schemaSettings?: {
     type?: string;
     headline?: string;
@@ -132,6 +138,12 @@ function mapBlog(doc: DbBlogDoc): Blog {
       excerpt: rb.excerpt ? String(rb.excerpt) : "",
       image: rb.image ? String(rb.image) : "",
       category: rb.category ? String(rb.category) : "",
+    })),
+    embeddedLinks: (doc.embeddedLinks || []).map((el) => ({
+      url: String(el.url || ""),
+      title: String(el.title || ""),
+      description: el.description ? String(el.description) : "",
+      category: el.category ? String(el.category) : "Resource",
     })),
     schemaSettings: doc.schemaSettings || {
       type: "BlogPosting",

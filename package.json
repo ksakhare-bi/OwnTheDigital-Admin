@@ -12,6 +12,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.31.0",
     "mongoose": "^9.9.1",

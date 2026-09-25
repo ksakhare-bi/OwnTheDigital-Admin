@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/utils/format-date";
 import type { Blog } from "@/types/blog";
@@ -9,7 +12,39 @@ type BlogTableProps = {
   blogs: Blog[];
 };
 
+function BlogThumbnail({ src, title }: { src?: string; title: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className="h-10 w-14 rounded-lg bg-zinc-100 border border-zinc-200/60 flex items-center justify-center shrink-0">
+        <ImageIcon className="size-5 text-zinc-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-10 w-14 rounded-lg overflow-hidden bg-zinc-50 border border-zinc-200/60 shrink-0">
+      <Image
+        src={src}
+        alt={title || "Blog cover"}
+        fill
+        sizes="56px"
+        unoptimized
+        onError={() => setHasError(true)}
+        className="object-cover"
+      />
+    </div>
+  );
+}
+
 export function BlogTable({ blogs }: BlogTableProps) {
+  const websiteBaseUrl =
+    process.env.NEXT_PUBLIC_WEBSITE_URL ||
+    (typeof window !== "undefined" && window.location.hostname === "localhost"
+      ? "http://localhost:3000"
+      : "https://ownthedigital.com");
+
   if (blogs.length === 0) {
     return (
       <EmptyState
@@ -36,19 +71,7 @@ export function BlogTable({ blogs }: BlogTableProps) {
             <tr key={blog.id} className="text-zinc-800 transition-colors hover:bg-zinc-50/40">
               <td className="px-5 py-3.5">
                 <div className="flex items-center gap-3.5">
-                  {blog.image ? (
-                    <Image
-                      src={blog.image}
-                      alt=""
-                      width={56}
-                      height={40}
-                      className="h-10 w-14 rounded-lg object-cover bg-zinc-50 border border-zinc-200/60 shrink-0"
-                    />
-                  ) : (
-                    <div className="h-10 w-14 rounded-lg bg-zinc-50 border border-zinc-200/60 flex items-center justify-center shrink-0">
-                      <ImageIcon className="size-5 text-zinc-400" />
-                    </div>
-                  )}
+                  <BlogThumbnail src={blog.image} title={blog.title} />
                   <div className="min-w-0">
                     <div className="font-semibold text-zinc-900 truncate max-w-[320px]">{blog.title}</div>
                     <div className="text-xs text-zinc-500 font-mono mt-0.5">/{blog.slug}</div>
@@ -86,7 +109,7 @@ export function BlogTable({ blogs }: BlogTableProps) {
                     <span>Edit</span>
                   </Link>
                   <a
-                    href={`http://localhost:3000/blog/${blog.slug}`}
+                    href={`${websiteBaseUrl}/blog/${blog.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center size-8 rounded-lg border border-zinc-200 bg-white text-zinc-400 shadow-sm transition-all hover:bg-zinc-50 hover:text-zinc-700 hover:border-zinc-300 active:scale-[0.97] cursor-pointer"

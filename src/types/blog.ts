@@ -54,6 +54,13 @@ export type BlogSchemaSettings = {
   image?: string;
 };
 
+export type EmbeddedLink = {
+  url: string;
+  title: string;
+  description?: string;
+  category?: string;
+};
+
 export type BlogSection = {
   heading: string;
   description: string;
@@ -82,6 +89,7 @@ export type Blog = {
   seo?: BlogSeo;
   social?: BlogSocial;
   relatedBlogs?: RelatedBlogItem[];
+  embeddedLinks?: EmbeddedLink[];
   schemaSettings?: BlogSchemaSettings;
   createdAt: Date;
   updatedAt: Date;
@@ -108,6 +116,7 @@ export type CreateBlogInput = {
   seo?: BlogSeo;
   social?: BlogSocial;
   relatedBlogs?: RelatedBlogItem[];
+  embeddedLinks?: EmbeddedLink[];
   schemaSettings?: BlogSchemaSettings;
 };
 

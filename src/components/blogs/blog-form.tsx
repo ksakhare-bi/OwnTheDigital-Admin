@@ -7,30 +7,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Image from "next/image";
 import {
-  Globe,
-  Search,
   Share2,
   FileCode,
   Image as ImageIcon,
   Link as LinkIcon,
   CheckCircle2,
   AlertCircle,
-  Plus,
   Trash2,
-  ExternalLink,
   Sparkles,
   Layers,
   ChevronDown,
   ChevronUp,
-  Smartphone,
-  Monitor,
-  Check,
-  Calendar,
-  User,
-  SlidersHorizontal,
-  FileText,
-  Eye,
-  Info,
   Upload,
   Loader2,
 } from "lucide-react";
@@ -38,7 +25,7 @@ import {
 import { createBlogSchema } from "@/lib/validations/blog";
 import { createBlogAction, updateBlogAction, deleteBlogAction } from "@/app/actions";
 import { slugify } from "@/utils/slug";
-import type { Blog, RelatedBlogItem } from "@/types/blog";
+import type { Blog, RelatedBlogItem, EmbeddedLink } from "@/types/blog";
 import { ContentEditor } from "./content-editor";
 import { CollapsibleBox } from "@/components/ui/collapsible-box";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -68,6 +55,7 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
     yoastSeo: true,
     featuredImage: true,
     tags: true,
+    embeddedLinks: true,
     excerpt: true,
     relatedBlogs: true,
     postAttributes: true,
@@ -84,6 +72,7 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
       yoastSeo: expand,
       featuredImage: expand,
       tags: expand,
+      embeddedLinks: expand,
       excerpt: expand,
       relatedBlogs: expand,
       postAttributes: expand,
@@ -162,6 +151,7 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
         twitterCard: blog?.social?.twitterCard || "summary_large_image",
       },
       relatedBlogs: blog?.relatedBlogs || [],
+      embeddedLinks: blog?.embeddedLinks || [],
       schemaSettings: {
         type: blog?.schemaSettings?.type || "BlogPosting",
         headline: blog?.schemaSettings?.headline || blog?.title || "",
@@ -188,6 +178,7 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
   const tagsValue = watch("tags") || [];
   const seoKeywordsValue = watch("seo.keywords") || [];
   const relatedBlogsValue = watch("relatedBlogs") || [];
+  const embeddedLinksValue = watch("embeddedLinks") || [];
   const schemaTypeValue = watch("seo.schemaType") || "BlogPosting";
 
   const [newTagInput, setNewTagInput] = useState("");
@@ -195,11 +186,40 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
   const [customRelatedSlug, setCustomRelatedSlug] = useState("");
   const [showJsonLdPreview, setShowJsonLdPreview] = useState(false);
 
+  // Embedded Link State for Model
+  const [newEmbeddedUrl, setNewEmbeddedUrl] = useState("");
+  const [newEmbeddedTitle, setNewEmbeddedTitle] = useState("");
+  const [newEmbeddedDesc, setNewEmbeddedDesc] = useState("");
+  const [newEmbeddedCategory, setNewEmbeddedCategory] = useState("Resource");
+
+  const addEmbeddedLink = () => {
+    if (!newEmbeddedUrl.trim() || !newEmbeddedTitle.trim()) return;
+    const item: EmbeddedLink = {
+      url: newEmbeddedUrl.trim(),
+      title: newEmbeddedTitle.trim(),
+      description: newEmbeddedDesc.trim(),
+      category: newEmbeddedCategory.trim() || "Resource",
+    };
+    setValue("embeddedLinks", [...embeddedLinksValue, item], { shouldValidate: true });
+    setNewEmbeddedUrl("");
+    setNewEmbeddedTitle("");
+    setNewEmbeddedDesc("");
+  };
+
+  const removeEmbeddedLink = (indexToRemove: number) => {
+    setValue(
+      "embeddedLinks",
+      embeddedLinksValue.filter((_, idx) => idx !== indexToRemove),
+      { shouldValidate: true }
+    );
+  };
+
   // Featured Image Upload State & Handlers
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [imagePreviewError, setImagePreviewError] = useState(false);
 
   const handleImageFile = async (file: File) => {
     if (!file) return;
@@ -216,6 +236,7 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
 
     setIsUploadingImage(true);
     setUploadError(null);
+    setImagePreviewError(false);
 
     try {
       const formData = new FormData();
@@ -237,6 +258,7 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
       setValue("featuredImage.name", data.filename);
       clearErrors("featuredImage.url");
       clearErrors("image");
+      setImagePreviewError(false);
 
       // Auto-populate altText if not set or default
       const currentAlt = watch("featuredImage.altText");
@@ -269,6 +291,7 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
     setValue("featuredImage.url", "", { shouldValidate: true });
     setValue("image", "", { shouldValidate: true });
     setValue("featuredImage.name", "");
+    setImagePreviewError(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -294,13 +317,29 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
     setValue("seo.canonicalUrl", `https://ownthedigital.com/blogs/${gen}`);
   };
 
-  // Tag management
-  const addTag = () => {
-    const trimmed = newTagInput.trim();
-    if (trimmed && !tagsValue.includes(trimmed)) {
-      setValue("tags", [...tagsValue, trimmed]);
-      setNewTagInput("");
-    }
+  // Tag management (handles comma-separated tags automatically)
+  const addTag = (textToAdd?: string) => {
+    const raw = (typeof textToAdd === "string" ? textToAdd : newTagInput).trim();
+    if (!raw) return;
+
+    // Split by comma to add all tags at once as individual tags
+    const splitTags = raw
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    if (splitTags.length === 0) return;
+
+    const nextTags = [...tagsValue];
+    splitTags.forEach((tag) => {
+      if (!nextTags.includes(tag)) {
+        nextTags.push(tag);
+      }
+    });
+
+    setValue("tags", nextTags, { shouldValidate: true });
+    clearErrors("tags");
+    setNewTagInput("");
   };
 
   const removeTag = (tagToRemove: string) => {
@@ -791,6 +830,15 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
                           )}
                           <span>Image alt attributes: {watch("featuredImage.altText") ? "Configured" : "Missing alt text"}</span>
                         </div>
+
+                        <div className="flex items-center gap-2">
+                          {watch("featuredImage.description") ? (
+                            <span className="size-2 rounded-full bg-emerald-500" />
+                          ) : (
+                            <span className="size-2 rounded-full bg-amber-500" />
+                          )}
+                          <span>Image SEO description: {watch("featuredImage.description") ? "Configured" : "Recommended for image SEO & schema"}</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -904,7 +952,17 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
                           "@type": schemaTypeValue,
                           headline: titleValue,
                           description: metaDescValue || excerptValue,
-                          image: [featuredImageUrl],
+                          image: featuredImageUrl
+                            ? {
+                                "@type": "ImageObject",
+                                url: featuredImageUrl,
+                                caption: watch("featuredImage.caption") || titleValue,
+                                description:
+                                  watch("featuredImage.description") ||
+                                  watch("featuredImage.altText") ||
+                                  metaDescValue,
+                              }
+                            : undefined,
                           author: [{ "@type": "Person", name: typeof authorValue === "string" ? authorValue : "Own The Digital Team" }],
                           publisher: { "@type": "Organization", name: "Own The Digital", url: "https://ownthedigital.com" },
                         },
@@ -1246,35 +1304,63 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
                   )}
 
                   {featuredImageUrl ? (
-                    <>
-                      <Image
-                        src={featuredImageUrl}
-                        alt={watch("featuredImage.altText") || "Featured preview"}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                      {/* Action buttons overlay on hover */}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={isUploadingImage}
-                          className="inline-flex items-center gap-1 rounded bg-white/95 px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-xs hover:bg-white hover:text-blue-600 transition-colors cursor-pointer"
-                        >
-                          <Upload className="size-3.5" />
-                          Change
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleRemoveFeaturedImage}
-                          className="inline-flex items-center gap-1 rounded bg-white/95 px-2.5 py-1 text-xs font-semibold text-red-600 shadow-xs hover:bg-white hover:text-red-700 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="size-3.5" />
-                          Remove
-                        </button>
+                    imagePreviewError ? (
+                      <div className="flex flex-col items-center justify-center p-4 text-center w-full h-full text-zinc-500 bg-zinc-100/80">
+                        <AlertCircle className="size-6 text-amber-500 mb-1.5" />
+                        <span className="text-xs font-semibold text-zinc-800">Preview not available</span>
+                        <span className="text-[11px] text-zinc-500 max-w-[280px] truncate mt-0.5">{featuredImageUrl}</span>
+                        <div className="mt-2.5 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isUploadingImage}
+                            className="inline-flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 cursor-pointer"
+                          >
+                            <Upload className="size-3.5" />
+                            Upload New
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRemoveFeaturedImage}
+                            className="inline-flex items-center gap-1 rounded bg-white px-2.5 py-1 text-xs font-semibold text-red-600 border border-zinc-200 shadow-xs hover:bg-red-50 cursor-pointer"
+                          >
+                            <Trash2 className="size-3.5" />
+                            Remove
+                          </button>
+                        </div>
                       </div>
-                    </>
+                    ) : (
+                      <>
+                        <Image
+                          src={featuredImageUrl}
+                          alt={watch("featuredImage.altText") || "Featured preview"}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                          onError={() => setImagePreviewError(true)}
+                        />
+                        {/* Action buttons overlay on hover */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isUploadingImage}
+                            className="inline-flex items-center gap-1 rounded bg-white/95 px-2.5 py-1 text-xs font-semibold text-zinc-800 shadow-xs hover:bg-white hover:text-blue-600 transition-colors cursor-pointer"
+                          >
+                            <Upload className="size-3.5" />
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRemoveFeaturedImage}
+                            className="inline-flex items-center gap-1 rounded bg-white/95 px-2.5 py-1 text-xs font-semibold text-red-600 shadow-xs hover:bg-white hover:text-red-700 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="size-3.5" />
+                            Remove
+                          </button>
+                        </div>
+                      </>
+                    )
                   ) : (
                     <div
                       onClick={() => fileInputRef.current?.click()}
@@ -1343,10 +1429,11 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
                     type="text"
                     {...register("featuredImage.url")}
                     onChange={(e) => {
+                      setImagePreviewError(false);
                       setValue("featuredImage.url", e.target.value);
                       setValue("image", e.target.value);
                     }}
-                    placeholder="https://... or /uploads/..."
+                    placeholder="https://res.cloudinary.com/... or https://..."
                     className="mt-1 block w-full rounded border border-zinc-300 px-2.5 py-1 text-xs text-zinc-800 focus:outline-none"
                   />
                   {errors.featuredImage?.url && (
@@ -1388,10 +1475,25 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
                     className="mt-1 block w-full rounded border border-zinc-300 px-2.5 py-1 text-xs text-zinc-800 focus:outline-none"
                   />
                 </div>
+
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-semibold text-zinc-600">
+                      Description (for SEO & Schema)
+                    </label>
+                    <span className="text-[10px] text-zinc-400">SEO Schema metadata</span>
+                  </div>
+                  <textarea
+                    rows={2}
+                    {...register("featuredImage.description")}
+                    placeholder="Detailed explanation of the visual for SEO indexing, image schema, and accessibility..."
+                    className="mt-1 block w-full rounded border border-zinc-300 px-2.5 py-1 text-xs text-zinc-800 focus:outline-none resize-none"
+                  />
+                </div>
               </div>
             </CollapsibleBox>
 
-            {/* Tags Meta-Box (Matching Image 2) */}
+            {/* Tags Meta-Box */}
             <CollapsibleBox
               title="Tags"
               isOpen={openPanels.tags}
@@ -1402,26 +1504,56 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
                   <input
                     type="text"
                     value={newTagInput}
-                    onChange={(e) => setNewTagInput(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val.includes(",")) {
+                        const parts = val.split(",");
+                        const toAdd = parts.slice(0, -1).map((s) => s.trim()).filter(Boolean);
+                        const remaining = parts[parts.length - 1];
+
+                        if (toAdd.length > 0) {
+                          const nextTags = [...tagsValue];
+                          toAdd.forEach((t) => {
+                            if (!nextTags.includes(t)) {
+                              nextTags.push(t);
+                            }
+                          });
+                          setValue("tags", nextTags, { shouldValidate: true });
+                          clearErrors("tags");
+                        }
+                        setNewTagInput(remaining);
+                      } else {
+                        setNewTagInput(val);
+                      }
+                    }}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData("text");
+                      if (pasted.includes(",")) {
+                        e.preventDefault();
+                        addTag(pasted);
+                      }
+                    }}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") {
+                      if (e.key === "Enter" || e.key === ",") {
                         e.preventDefault();
                         addTag();
                       }
                     }}
-                    placeholder="Add new tag"
+                    placeholder="Add tags (comma-separated or single)"
                     className="w-full rounded border border-zinc-300 px-3 py-1.5 text-xs text-zinc-800 focus:outline-none"
                   />
                   <button
                     type="button"
-                    onClick={addTag}
-                    className="rounded border border-blue-600 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 cursor-pointer"
+                    onClick={() => addTag()}
+                    className="rounded border border-blue-600 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 cursor-pointer shrink-0"
                   >
                     Add
                   </button>
                 </div>
 
-                <p className="text-[11px] text-zinc-400">Separate tags with commas</p>
+                <p className="text-[11px] text-zinc-500">
+                  Tip: Separate tags with commas (e.g. <code>AI, Next.js, Cloudinary</code>) to add all at once.
+                </p>
 
                 {/* Active tag chips */}
                 <div className="flex flex-wrap gap-1.5">
@@ -1462,6 +1594,109 @@ export function BlogForm({ blog, availableBlogs = [] }: BlogFormProps) {
                     ))}
                   </div>
                 </div>
+              </div>
+            </CollapsibleBox>
+
+            {/* Embedded Links Meta-Box (Model & Website Resources) */}
+            <CollapsibleBox
+              title={`Embedded Links (${embeddedLinksValue.length})`}
+              isOpen={openPanels.embeddedLinks}
+              onToggle={() => togglePanel("embeddedLinks")}
+            >
+              <div className="space-y-3.5">
+                <p className="text-[11px] text-zinc-500 leading-relaxed">
+                  Saved with the blog model and displayed as clickable resources on the website.
+                </p>
+
+                {/* Form to add a new embedded link */}
+                <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-3 space-y-2">
+                  <span className="text-[11px] font-bold text-zinc-800 block">Add Link to Model</span>
+                  <div>
+                    <input
+                      type="text"
+                      value={newEmbeddedUrl}
+                      onChange={(e) => setNewEmbeddedUrl(e.target.value)}
+                      placeholder="URL: https://ownthedigital.com/..."
+                      className="w-full rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs text-zinc-800 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={newEmbeddedTitle}
+                      onChange={(e) => setNewEmbeddedTitle(e.target.value)}
+                      placeholder="Headline / Label: e.g. AI Strategy Guide"
+                      className="w-full rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs text-zinc-800 focus:outline-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={newEmbeddedCategory}
+                      onChange={(e) => setNewEmbeddedCategory(e.target.value)}
+                      placeholder="Category: Resource"
+                      className="w-full rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs text-zinc-800 focus:outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={newEmbeddedDesc}
+                      onChange={(e) => setNewEmbeddedDesc(e.target.value)}
+                      placeholder="Short note (optional)"
+                      className="w-full rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs text-zinc-800 focus:outline-none"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addEmbeddedLink}
+                    disabled={!newEmbeddedUrl.trim() || !newEmbeddedTitle.trim()}
+                    className="w-full rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 cursor-pointer disabled:opacity-50"
+                  >
+                    Save Embedded Link to Blog
+                  </button>
+                </div>
+
+                {/* List of saved embedded links */}
+                {embeddedLinksValue.length > 0 ? (
+                  <div className="space-y-2">
+                    {embeddedLinksValue.map((el, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-lg border border-zinc-200 bg-white p-2.5 shadow-2xs flex items-start justify-between gap-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-mono font-semibold uppercase text-blue-700">
+                              {el.category || "Resource"}
+                            </span>
+                            <span className="font-semibold text-xs text-zinc-900 truncate block">
+                              {el.title}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-blue-600 truncate block font-mono mt-0.5">
+                            {el.url}
+                          </span>
+                          {el.description && (
+                            <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
+                              {el.description}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeEmbeddedLink(idx)}
+                          className="text-zinc-400 hover:text-red-600 cursor-pointer p-1 text-xs"
+                          title="Remove embedded link"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-[11px] text-zinc-400 py-2">
+                    No structured embedded links stored yet.
+                  </p>
+                )}
               </div>
             </CollapsibleBox>
           </div>

@@ -34,6 +34,16 @@ const relatedBlogItemSchema = new Schema(
   { _id: false },
 );
 
+const embeddedLinkSchema = new Schema(
+  {
+    url: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, default: "", trim: true },
+    category: { type: String, default: "Resource", trim: true },
+  },
+  { _id: false },
+);
+
 const blogSchema = new Schema(
   {
     title: {
@@ -127,6 +137,7 @@ const blogSchema = new Schema(
       twitterCard: { type: String, default: "summary_large_image" },
     },
     relatedBlogs: [relatedBlogItemSchema],
+    embeddedLinks: [embeddedLinkSchema],
     schemaSettings: {
       type: { type: String, default: "BlogPosting" },
       headline: { type: String, default: "" },

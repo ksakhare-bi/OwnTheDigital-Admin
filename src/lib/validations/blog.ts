@@ -46,6 +46,13 @@ export const relatedBlogSchema = z.object({
   category: z.string().optional().default(""),
 });
 
+export const embeddedLinkSchema = z.object({
+  url: z.string().min(1, "URL is required"),
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional().default(""),
+  category: z.string().optional().default("Resource"),
+});
+
 export const schemaSettingsSchema = z.object({
   type: z.string().optional().default("BlogPosting"),
   headline: z.string().optional().default(""),
@@ -95,6 +102,7 @@ export const createBlogSchema = z.object({
   seo: seoSettingsSchema.optional(),
   social: socialSettingsSchema.optional(),
   relatedBlogs: z.array(relatedBlogSchema).optional().default([]),
+  embeddedLinks: z.array(embeddedLinkSchema).optional().default([]),
   schemaSettings: schemaSettingsSchema.optional(),
 });
 
